@@ -6,6 +6,8 @@ require('dotenv').config();
 const saltRounds = 10;
 const secret = process.env.SECRET;
 
+const ALLOWED_TABLES = ["carpetas", "notas", "seccion", "tareas "];
+
 async function selectAll(req, res){
     try {
         const result = await db.query(`SELECT * FROM ${req.params.table}`);
@@ -84,8 +86,6 @@ async function deleteByColumn(req, res){
 
 async function auth(req, res){
     const {user, pass}=req.body;
-    //const p=CryptoJS.AES.encrypt(pass, secret).toString();
-    //console.log(p); //U2FsdGVkX18FFPkoGlBuSJKUL2/UR4S6DKbYtgjHknU=  //12345
     const rawPass=CryptoJS.AES.decrypt(pass, secret).toString(CryptoJS.enc.Utf8);
     try {
         const result = await db.query(`SELECT * FROM users where "user" = $1`,[user]);
@@ -106,17 +106,110 @@ async function auth(req, res){
     }
 }
 
+function verifySQL(req, res, next){
+    if(req.body.fields !== undefined){
+        for (const field of req.body.fields) {
+            if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(field)) {
+                return res.status(400).json({ error: `Nombre de columna inválido: ${field}` });
+            }
+        }
+    }
+    if(req.params.column !== undefined){
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(req.params.column)) {
+            return res.status(400).json({ error: `Nombre de columna inválido: ${req.params.column}` });
+        }
+    }
+    if(req.params.table !== undefined){
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(req.params.table)) {
+            return res.status(400).json({ error: `Nombre de tabla inválido: ${req.params.table}` });
+        }
+    }
+    next();
+}
+
 async function verifyToken(req, res, next){
     const token=req.get("access-token");
     jwt.verify(token, secret, function(err, decoded) {
-        console.log("decoded", decoded);
         if(decoded===undefined){
-            res.json({message:"invalid token"});
+            res.json({message:"Invalid token"});
         }else{
             next();
         }
     });
     
+}
+
+async function insert(req, res){
+    const {table}=req.params;
+    const {values}=req.body;
+
+    if (!Array.isArray(values) || values.length === 0) {
+        return res.status(400).json({ error: "values debe ser un arreglo no vacío" });
+    }
+
+    const fields = values.map((_, i) => `$${i + 1}`).join(", ");
+
+    try {
+        const result = await db.query(`insert into "${table}" values (default, ${fields}) returning id`, values);
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send(`Internal Server Error ${err}`);
+    }
+}
+
+async function updateByPk(req, res){
+    const { table, id } = req.params;
+    const { fields, values } = req.body;
+
+    if (!Array.isArray(fields) || !Array.isArray(values) || fields.length !== values.length) {
+        return res.status(400).json({ error: "fields y values deben ser arreglos del mismo tamaño" });
+    }
+
+    try {
+        const setClauses = fields.map((field, i) => `"${field}" = $${i + 1}`).join(", ");
+
+        const queryValues = [...values, id];
+        const query = `UPDATE "${table}" SET ${setClauses} WHERE id = $${values.length + 1} RETURNING *`;
+
+        const result = await db.query(query, queryValues);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Registro no encontrado" });
+        }
+
+        res.json(result.rows[0]); 
+    } catch (err) {
+        console.error("Error en update:", err.message);
+        res.status(500).json({ error: "Error al actualizar registro" });
+    }
+}
+
+async function updateByColumn(req, res){
+    const { table, column, value } = req.params;
+    const { fields, values } = req.body;
+
+    if (!Array.isArray(fields) || !Array.isArray(values) || fields.length !== values.length) {
+        return res.status(400).json({ error: "fields y values deben ser arreglos del mismo tamaño" });
+    }
+
+    try {
+        const setClauses = fields.map((field, i) => `"${field}" = $${i + 1}`).join(", ");
+
+        const queryValues = [...values, value];
+        const query = `UPDATE "${table}" SET ${setClauses} WHERE ${column} = $${values.length + 1} RETURNING *`;
+
+        const result = await db.query(query, queryValues);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Registro no encontrado" });
+        }
+
+        res.json(result.rows[0]); 
+    } catch (err) {
+        console.error("Error en update:", err.message);
+        res.status(500).json({ error: "Error al actualizar registro" });
+    }
 }
 
 module.exports = {
@@ -127,5 +220,9 @@ module.exports = {
     deleteByPk,
     deleteByColumn,
     auth,
-    verifyToken
+    verifyToken,
+    verifySQL,
+    insert,
+    updateByPk,
+    updateByColumn
 }
