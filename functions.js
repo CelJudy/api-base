@@ -158,6 +158,33 @@ async function insert(req, res){
     }
 }
 
+async function insertMany(req, res){
+    const {table}=req.params;
+    const {values}=req.body;
+
+    if (!Array.isArray(values) || values.length === 0) {
+        return res.status(400).json({ error: "values debe ser un arreglo no vacío" });
+    }
+    let x=0;
+
+    let val=[];
+    const fields=values.map((element)=>{
+        return element.map((value)=>{
+            val.push(value);
+            x++;
+            return `$${x}`;
+        }).join(", ");
+    }).join("), (default, ");
+
+    try {
+        const result = await db.query(`insert into "${table}" values (default, ${fields}) returning id`, val);
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send(`Internal Server Error ${err}`);
+    }
+}
+
 async function updateByPk(req, res){
     const { table, id } = req.params;
     const { fields, values } = req.body;
@@ -223,6 +250,7 @@ module.exports = {
     verifyToken,
     verifySQL,
     insert,
+    insertMany,
     updateByPk,
     updateByColumn
 }

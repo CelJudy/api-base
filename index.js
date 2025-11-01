@@ -15,6 +15,7 @@ app.delete("/api/delete/:table/:id", functions.verifyToken, functions.verifySQL,
 app.delete("/api/delete/:table/:column/:value", functions.verifyToken, functions.verifySQL, functions.deleteByColumn);
 
 app.post("/api/insert/:table", functions.verifyToken, functions.verifySQL, functions.insert);
+app.post("/api/insert/many/:table", functions.verifyToken, functions.verifySQL, functions.insertMany);
 
 app.put("/api/update/:table/:id", functions.verifyToken, functions.verifySQL, functions.updateByPk);
 app.put("/api/update/:table/:column/:value", functions.verifyToken, functions.verifySQL, functions.updateByColumn);
