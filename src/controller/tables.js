@@ -56,7 +56,7 @@ async function deleteByPk(req, res){
             `delete from ${table} where id=$1`,
             [id]
         );
-        res.json({message:"ok"});
+        res.json({message:"ok", deletedRows: result.rowCount});
     } catch (err) {
         console.error(err);
         res.status(500).send('Internal Server Error');
@@ -70,7 +70,7 @@ async function deleteByColumn(req, res){
             `delete from ${table} where ${column}=$1`,
             [value]
         );
-        res.json({message:"ok"});
+        res.json({message:"ok", deletedRows: result.rowCount});
     } catch (err) {
         console.error(err);
         res.status(500).send('Internal Server Error');
@@ -135,7 +135,7 @@ async function updateByPk(req, res){
         const setClauses = fields.map((field, i) => `"${field}" = $${i + 1}`).join(", ");
 
         const queryValues = [...values, id];
-        const query = `UPDATE "${table}" SET ${setClauses} WHERE id = $${values.length + 1} RETURNING *`;
+        const query = `UPDATE "${table}" SET ${setClauses} WHERE id = $${values.length + 1}`;
 
         const result = await db.query(query, queryValues);
 
@@ -143,7 +143,7 @@ async function updateByPk(req, res){
             return res.status(404).json({ error: "Registro no encontrado" });
         }
 
-        res.json(result.rows[0]); 
+        res.json({message:"ok", updatedRows: result.rowCount});
     } catch (err) {
         console.error("Error en update:", err.message);
         res.status(500).json({ error: "Error al actualizar registro" });
@@ -162,15 +162,11 @@ async function updateByColumn(req, res){
         const setClauses = fields.map((field, i) => `"${field}" = $${i + 1}`).join(", ");
 
         const queryValues = [...values, value];
-        const query = `UPDATE "${table}" SET ${setClauses} WHERE ${column} = $${values.length + 1} RETURNING *`;
+        const query = `UPDATE "${table}" SET ${setClauses} WHERE ${column} = $${values.length + 1}`;
 
         const result = await db.query(query, queryValues);
 
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: "Registro no encontrado" });
-        }
-
-        res.json(result.rows[0]); 
+        res.json({message:"ok", updatedRows: result.rowCount});
     } catch (err) {
         console.error("Error en update:", err.message);
         res.status(500).json({ error: "Error al actualizar registro" });
