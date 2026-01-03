@@ -1,12 +1,5 @@
-const db = require('./connection');
-const jwt=require("jsonwebtoken");
-const bcrypt = require('bcrypt');
-const CryptoJS = require("crypto-js");
+const db = require('../models/connection');
 require('dotenv').config();
-const saltRounds = 10;
-const secret = process.env.SECRET;
-
-const ALLOWED_TABLES = ["carpetas", "notas", "seccion", "tareas "];
 
 async function selectAll(req, res){
     try {
@@ -25,7 +18,7 @@ async function selectByPk(req, res){
             `SELECT * FROM ${table} where id=$1`,
             [id]
         );
-        res.json(result.rows);
+        res.json(result.rows[0]);
     } catch (err) {
         console.error(err);
         res.status(500).send('Internal Server Error');
@@ -82,61 +75,6 @@ async function deleteByColumn(req, res){
         console.error(err);
         res.status(500).send('Internal Server Error');
     }
-}
-
-async function auth(req, res){
-    const {user, pass}=req.body;
-    const rawPass=CryptoJS.AES.decrypt(pass, secret).toString(CryptoJS.enc.Utf8);
-    try {
-        const result = await db.query(`SELECT * FROM users where "user" = $1`,[user]);
-        if(result.rowCount==0){
-            res.json({message:"invalid credentials"});
-        }else{
-            const isMatch = await bcrypt.compare(rawPass, result.rows[0].pass);
-            if(isMatch){
-                const token = jwt.sign({}, secret, {expiresIn:1});//1s
-                res.json({message:"ok",id:result.rows[0].id, token});
-            }else{
-                res.json({message:"invalid credentials"});
-            }
-        }
-    } catch (err) {
-        console.error(err);
-        res.status(500).send('Internal Server Error');
-    }
-}
-
-function verifySQL(req, res, next){
-    if(req.body.fields !== undefined){
-        for (const field of req.body.fields) {
-            if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(field)) {
-                return res.status(400).json({ error: `Nombre de columna inválido: ${field}` });
-            }
-        }
-    }
-    if(req.params.column !== undefined){
-        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(req.params.column)) {
-            return res.status(400).json({ error: `Nombre de columna inválido: ${req.params.column}` });
-        }
-    }
-    if(req.params.table !== undefined){
-        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(req.params.table)) {
-            return res.status(400).json({ error: `Nombre de tabla inválido: ${req.params.table}` });
-        }
-    }
-    next();
-}
-
-async function verifyToken(req, res, next){
-    const token=req.get("access-token");
-    jwt.verify(token, secret, function(err, decoded) {
-        if(decoded===undefined){
-            res.json({message:"Invalid token"});
-        }else{
-            next();
-        }
-    });
-    
 }
 
 async function insert(req, res){
@@ -246,9 +184,6 @@ module.exports = {
     selectOptions,
     deleteByPk,
     deleteByColumn,
-    auth,
-    verifyToken,
-    verifySQL,
     insert,
     insertMany,
     updateByPk,
